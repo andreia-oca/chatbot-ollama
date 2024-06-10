@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 
 import { useFetch } from '@/hooks/useFetch';
 
-import {OllamaModel, OllamaModelDetail} from '@/types/ollama'
+import {OllamaModel} from '@/types/ollama'
 
 
 const useApiService = () => {
@@ -18,22 +18,8 @@ const useApiService = () => {
     },
     [fetchService],
   );
-
-  const getModelDetails = useCallback(
-    (name: string) => {
-      return fetchService.post(`/api/modeldetails`, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: {name: name }, 
-      });
-    },
-    [fetchService],
-  );
-
   return {
-    getModels,
-    getModelDetails
+    getModels
   };
 };
 

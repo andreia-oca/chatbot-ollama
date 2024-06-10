@@ -1,6 +1,5 @@
 import { OLLAMA_HOST } from '@/utils/app/const';
-
-import { OllamaModel, OllamaModelID, OllamaModels } from '@/types/ollama';
+import { OllamaModel } from '@/types/ollama';
 
 export const config = {
   runtime: 'edge',
@@ -8,45 +7,86 @@ export const config = {
 
 const handler = async (req: Request): Promise<Response> => {
   try {
-    let url = `${OLLAMA_HOST}/api/tags`;
+    let ollamaModels: OllamaModel[] = [];
 
-    const response = await fetch(url, {
+    // Fetch Ollama models
+    try {
+      const ollamaResponse = await fetch(`${OLLAMA_HOST}/api/tags`, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (ollamaResponse.status === 200) {
+        const json = await ollamaResponse.json();
+        ollamaModels = json.models.map((model: any) => ({
+          id: model.name,
+          name: model.name,
+          modified_at: model.modified_at,
+          size: model.size,
+        })).filter(Boolean);
+      } else if (ollamaResponse.status === 401) {
+        return new Response(ollamaResponse.body, {
+          status: 500,
+          headers: ollamaResponse.headers,
+        });
+      } else {
+        console.error(
+          `Ollama API returned an error ${
+            ollamaResponse.status
+          }: ${await ollamaResponse.text()}`
+        );
+      }
+    } catch (error) {
+      console.error('Failed to fetch Ollama models', error);
+    }
+
+    // Fetch OpenAI models
+    const openaiResponse = await fetch('https://api.openai.com/v1/models', {
       headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
         'Content-Type': 'application/json',
       },
     });
 
-    if (response.status === 401) {
-      return new Response(response.body, {
-        status: 500,
-        headers: response.headers,
-      });
-    } else if (response.status !== 200) {
-      console.error(
-        `Ollama API returned an error ${
-          response.status
-        }: ${await response.text()}`,
-      );
-      throw new Error('Ollama API returned an error');
+    if (openaiResponse.status !== 200) {
+      throw new Error(`OpenAI API returned an error: ${openaiResponse.status}`);
     }
 
-    const json = await response.json();
+    const openaiJson = await openaiResponse.json();
+    const openaiModels = openaiJson.data.map((model: any) => ({
+      id: model.id,
+      name: model.id,
+      created_at: model.created,
+    }));
 
-    const models: OllamaModel[] = json.models
-      .map((model: any) => {
-        const model_name = model.name;
-        for (const [key, value] of Object.entries(OllamaModelID)) {
-          {
-            return {
-              id: model.name,
-              name: model.name,
-              modified_at: model.modified_at,
-              size: model.size,
-            };
-          }
-        }
-      })
-      .filter(Boolean);
+    // Fetch Genezio models
+    const genezioResponse = await fetch('https://80610373-d10d-4a8f-87f5-83c1bbca4fed.dev-fkt.cloud.genez.io/', {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      method: 'POST',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'GenezioAiService.getModels',
+        params: [],
+        id: 3,
+      }),
+    });
+
+    if (genezioResponse.status !== 200) {
+      throw new Error(`Genezio API returned an error: ${genezioResponse.status}`);
+    }
+
+
+    const genezioJson = await genezioResponse.json();
+    const genezioModels = genezioJson.result.models.map((model: any) => ({
+      id: model.id,
+      name: model.name,
+      created_at: model.created_at,
+    }));
+
+    const models = [...ollamaModels, ...openaiModels, ...genezioModels];
 
     return new Response(JSON.stringify(models), { status: 200 });
   } catch (error) {

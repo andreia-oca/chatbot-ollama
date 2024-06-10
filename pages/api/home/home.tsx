@@ -1,30 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from 'react-query';
-
 import { GetServerSideProps } from 'next';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
-
 import { useCreateReducer } from '@/hooks/useCreateReducer';
-
 import useErrorService from '@/services/errorService';
 import useApiService from '@/services/useApiService';
 
-import {
-  cleanConversationHistory,
-  cleanSelectedConversation,
-} from '@/utils/app/clean';
+import { cleanConversationHistory, cleanSelectedConversation } from '@/utils/app/clean';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
-import {
-  saveConversation,
-  saveConversations,
-  updateConversation,
-} from '@/utils/app/conversation';
+import { saveConversation, saveConversations, updateConversation } from '@/utils/app/conversation';
 import { saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
 import { getSettings } from '@/utils/app/settings';
-
 import { Conversation } from '@/types/chat';
 import { KeyValuePair } from '@/types/data';
 import { FolderInterface, FolderType } from '@/types/folder';
@@ -32,13 +21,9 @@ import { OllamaModelID, OllamaModels, fallbackModelID } from '@/types/ollama';
 import { Prompt } from '@/types/prompt';
 
 import { Chat } from '@/components/Chat/Chat';
-import { Chatbar } from '@/components/Chatbar/Chatbar';
 import { Navbar } from '@/components/Mobile/Navbar';
-import Promptbar from '@/components/Promptbar';
-
 import HomeContext from './home.context';
 import { HomeInitialState, initialState } from './home.state';
-
 import { v4 as uuidv4 } from 'uuid';
 
 interface Props {
@@ -303,11 +288,11 @@ const Home = ({ defaultModelId }: Props) => {
       }}
     >
       <Head>
-        <title>Chatbot Ollama</title>
-        <meta name="description" content="ChatGPT but local." />
+        <title>Genezio AI</title>
+        <meta name="description" content="Your smart code assistant." />
         <meta
           name="viewport"
-          content="height=device-height ,width=device-width, initial-scale=1, user-scalable=no"
+          content="height=device-height ,width=width-device, initial-scale=1, user-scalable=no"
         />
         <link rel="icon" href="/favicon.png" />
       </Head>
@@ -322,14 +307,13 @@ const Home = ({ defaultModelId }: Props) => {
             />
           </div>
 
-          <div className="flex h-full w-full pt-[48px] sm:pt-0">
-            <Chatbar />
+          <div className="flex h-full w-full sm:pt-0">
+            {/* <Chatbar /> */}
 
             <div className="flex flex-1">
               <Chat stopConversationRef={stopConversationRef} />
             </div>
 
-            <Promptbar />
           </div>
         </main>
       )}
@@ -339,7 +323,7 @@ const Home = ({ defaultModelId }: Props) => {
 export default Home;
 
 export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
-  const defaultModelId = 
+  const defaultModelId =
   process.env.DEFAULT_MODEL || fallbackModelID;
 
   return {

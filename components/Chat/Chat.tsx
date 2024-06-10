@@ -1,4 +1,4 @@
-import { IconClearAll, IconSettings } from '@tabler/icons-react';
+import { IconTrash } from '@tabler/icons-react';
 import {
   MutableRefObject,
   memo,
@@ -27,10 +27,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import Spinner from '../Spinner';
 import { ChatInput } from './ChatInput';
 import { ChatLoader } from './ChatLoader';
-import { ErrorMessageDiv } from './ErrorMessageDiv';
 import { ModelSelect } from './ModelSelect';
-import { SystemPrompt } from './SystemPrompt';
-import { TemperatureSlider } from './Temperature';
 import { MemoizedChatMessage } from './MemoizedChatMessage';
 
 interface Props {
@@ -58,6 +55,8 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showScrollDownButton, setShowScrollDownButton] =
     useState<boolean>(false);
+
+  const [code, setCode] = useState<string>('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -114,6 +113,7 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
           toast.error(response.statusText);
           return;
         }
+        const model = selectedConversation.model.name;
         const data = response.body;
         if (!data) {
           homeDispatch({ field: 'loading', value: false });
@@ -131,22 +131,55 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
             };
           }
           homeDispatch({ field: 'loading', value: false });
+
           const reader = data.getReader();
-          const decoder = new TextDecoder();
-          let done = false;
           let isFirst = true;
           let text = '';
-          while (!done) {
-          if (stopConversationRef.current === true) {
-            controller.abort();
-            done = true;
-            break;
+          let chunkValue = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              break;
+            }
+            const decoder = new TextDecoder();
+            chunkValue = decoder.decode(value, { stream: true });
+            console.log("chunkValue aici: ", chunkValue)
+
+            if (model.includes('llama') || model.includes('mistral')) {
+              text += chunkValue;
+            } else if (model.includes('genezio')) {
+              const jsonResponse = JSON.parse(chunkValue);
+              const content = jsonResponse.result.explanation
+
+              const code = jsonResponse.result.code
+
+              window.parent.postMessage({ type: 'FROM_IFRAME', code }, '*');
+
+              text = content;
+            } else {
+              // Split the chunk into individual JSON strings
+              const lines = chunkValue.split('\n');
+
+              for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith('data: ')) {
+                  // Strip the 'data: ' prefix
+                  const cleanChunkValue = line.replace(/^data: /, '');
+
+                  // Parse the JSON chunk
+                  try {
+                    if (cleanChunkValue !== '[DONE]') {
+                      const jsonChunk = JSON.parse(cleanChunkValue);
+                      const content = jsonChunk.choices[0].delta.content || '';
+                      text += content;
+                    }
+                  } catch (e) {
+                    console.error("Error parsing JSON chunk:", e);
+                  }
+                }
+              }
           }
-          const { value, done: doneReading } = await reader.read();
-          done = doneReading;
-          const chunkValue = decoder.decode(value);
-          text += chunkValue;
-          if (isFirst) {
+          if (isFirst && !model.includes('genezio')) {
             isFirst = false;
             const updatedMessages: Message[] = [
               ...updatedConversation.messages,
@@ -180,7 +213,7 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
                 value: updatedConversation,
               });
             }
-          } 
+          }
           saveConversation(updatedConversation);
           const updatedConversations: Conversation[] = conversations.map(
             (conversation) => {
@@ -229,12 +262,7 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
         }
       }
     },
-    [
-      conversations,
-      selectedConversation,
-      stopConversationRef,
-      homeDispatch,
-    ],
+    [conversations, selectedConversation, homeDispatch],
   );
 
   const scrollToBottom = useCallback(() => {
@@ -339,34 +367,17 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
                         <Spinner size="16px" className="mx-auto" />
                       </div>
                     ) : (
-                      'Chatbot Ollama'
+                      'Genezio AI - Your deployment assistant'
                     )}
                   </div>
 
                   {models.length > 0 && (
                     <div className="flex h-full flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600">
-                      <ModelSelect />
-
-                      <SystemPrompt
-                        conversation={selectedConversation}
-                        prompts={prompts}
-                        onChangePrompt={(prompt) =>
-                          handleUpdateConversation(selectedConversation, {
-                            key: 'prompt',
-                            value: prompt,
-                          })
-                        }
-                      />
-
-                      <TemperatureSlider
-                        label={t('Temperature')}
-                        onChangeTemperature={(temperature) =>
-                          handleUpdateConversation(selectedConversation, {
-                            key: 'temperature',
-                            value: temperature,
-                          })
-                        }
-                      />
+                      <h1><b>Welcome to Genezio AI</b></h1>
+                      <p>What serverless feature you want to implement today?</p>
+                      <p>
+                        Try something like <span style={{ textDecoration: 'underline', color: '#00c883' }}>Create a function that takes two numbers as input and returns their sum.</span>
+                      </p>
                     </div>
                   )}
                 </div>
@@ -374,19 +385,12 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
             ) : (
               <>
                 <div className="sticky top-0 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 py-2 text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
-                  {t('Model')}: {selectedConversation?.model.name} | {t('Temp')}
-                  : {selectedConversation?.temperature} |
-                  <button
-                    className="ml-2 cursor-pointer hover:opacity-50"
-                    onClick={handleSettings}
-                  >
-                    <IconSettings size={18} />
-                  </button>
+                  {t('Model')}: {selectedConversation?.model.name} |
                   <button
                     className="ml-2 cursor-pointer hover:opacity-50"
                     onClick={onClearAll}
                   >
-                    <IconClearAll size={18} />
+                    <IconTrash size={18} />
                   </button>
                 </div>
                 {showSettings && (
