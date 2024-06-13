@@ -1,38 +1,51 @@
+import { NextApiRequest, NextApiResponse } from 'next';
 import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
-import { OllamaError, OllamaStream } from '@/utils/server';
+import { OpenAiStream } from '@/utils/server';
+import { ChatBody } from '@/types/chat';
+import { Readable } from 'stream';
 
-import { ChatBody, Message } from '@/types/chat';
-
-
-export const config = {
-  runtime: 'edge',
-};
-
-const handler = async (req: Request): Promise<Response> => {
+const handler = async (req: NextApiRequest, res: NextApiResponse): Promise<void> => {
   try {
-    const { model, system, options, prompt } = (await req.json()) as ChatBody;
+    const { model, system, options, prompt } = req.body as ChatBody;
 
+    let promptToSend = system || DEFAULT_SYSTEM_PROMPT;
+    let temperatureToUse = options?.temperature ?? DEFAULT_TEMPERATURE;
 
-    let promptToSend = system;
-    if (!promptToSend) {
-      promptToSend = DEFAULT_SYSTEM_PROMPT;
+    const readableStream = await OpenAiStream(
+      "https://api.openai.com/v1/chat/completions",
+      model,
+      promptToSend,
+      temperatureToUse,
+      prompt
+    );
+
+    if (readableStream instanceof ReadableStream) {
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Transfer-Encoding', 'chunked');
+
+      const reader = readableStream.getReader();
+      const nodeStream = new Readable({
+        read() {
+          reader.read().then(({ done, value }) => {
+            if (done) {
+              this.push(null);
+            } else {
+              this.push(value);
+            }
+          }).catch(err => {
+            this.destroy(err);
+          });
+        }
+      });
+
+      nodeStream.pipe(res);
+    } else {
+      // In case the stream is not a readable stream
+      res.status(200).json({ data: readableStream });
     }
-
-    let temperatureToUse = options?.temperature;
-    if (temperatureToUse == null) {
-      temperatureToUse = DEFAULT_TEMPERATURE;
-    }
-
-    const stream = await OllamaStream (model, promptToSend, temperatureToUse, prompt);
-
-    return new Response(stream);
   } catch (error) {
     console.error(error);
-    if (error instanceof OllamaError) {
-      return new Response('Error', { status: 500, statusText: error.message });
-    } else {
-      return new Response('Error', { status: 500 });
-    }
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 };
 

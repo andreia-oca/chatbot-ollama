@@ -281,7 +281,7 @@ export const ChatInput = ({
               }`,
             }}
             placeholder={
-              t('Type a message or type "/" to select a prompt...') || ''
+              t('Describe your feature...') || ''
             }
             value={content}
             rows={1}
@@ -337,16 +337,16 @@ export const ChatInput = ({
       </div>
       <div className="px-3 pt-2 pb-3 text-center text-[12px] text-black/50 dark:text-white/50 md:px-4 md:pt-3 md:pb-6">
         <a
-          href="https://github.com/ivanfioravanti/chatbot-ollama"
+          href="https://genezio.com"
           target="_blank"
           rel="noreferrer"
           className="underline"
         >
-          Chatbot Ollama
+          Genezio AI
         </a>
         .{' '}
         {t(
-          "Chatbot Ollama is an advanced chatbot kit for Ollama models aiming to mimic ChatGPT's interface and functionality.",
+          "Genezio AI is a helpful assistant that will assist you in generating new features and deploy them to production",
         )}
       </div>
     </div>

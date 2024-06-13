@@ -1,10 +1,6 @@
 import { OLLAMA_HOST } from '@/utils/app/const';
 import { OllamaModelDetail } from '@/types/ollama';
 
-export const config = {
-  runtime: 'edge',
-};
-
 const handler = async (req: Request): Promise<Response> => {
   try {
     let url = `${OLLAMA_HOST}/api/show`;
@@ -16,11 +12,11 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const response = await fetch(url, {
-      method: 'POST', 
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ name }), 
+      body: JSON.stringify({ name }),
     });
 
     if (response.status === 401) {

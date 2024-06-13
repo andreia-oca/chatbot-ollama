@@ -102,18 +102,6 @@ export const ModelSelect = () => {
           ))}
         </select>
       </div>
-
-      {/* Display additional properties */}
-      <div className="mb-2 text-left text-neutral-700 dark:text-neutral-400">
-        <p className='mt-2'>
-          <span className="mr-16 inline-block">Size:</span>
-          <span className="inline-block">{selectedModelDetails.size}</span>
-        </p>
-        <p>
-          <span className="mr-8 inline-block">Modified:</span>
-          <span className="inline-block">{selectedModelDetails.modified}</span>
-        </p>
-      </div>
     </div>
   );
 };
