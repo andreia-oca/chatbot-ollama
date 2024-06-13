@@ -1,4 +1,4 @@
-import { IconClearAll, IconSettings } from '@tabler/icons-react';
+import { IconTrash } from '@tabler/icons-react';
 import {
   MutableRefObject,
   memo,
@@ -27,10 +27,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import Spinner from '../Spinner';
 import { ChatInput } from './ChatInput';
 import { ChatLoader } from './ChatLoader';
-import { ErrorMessageDiv } from './ErrorMessageDiv';
 import { ModelSelect } from './ModelSelect';
-import { SystemPrompt } from './SystemPrompt';
-import { TemperatureSlider } from './Temperature';
 import { MemoizedChatMessage } from './MemoizedChatMessage';
 
 interface Props {
@@ -44,16 +41,14 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
       selectedConversation,
       conversations,
       models,
-      messageIsStreaming,
-      modelError,
       loading,
-      prompts,
     },
     handleUpdateConversation,
     dispatch: homeDispatch,
   } = useContext(HomeContext);
 
   const [currentMessage, setCurrentMessage] = useState<Message>();
+  const [currentCode, setCurrentCode] = useState<string>('');
   const [autoScrollEnabled, setAutoScrollEnabled] = useState<boolean>(true);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [showScrollDownButton, setShowScrollDownButton] =
@@ -86,12 +81,13 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
           field: 'selectedConversation',
           value: updatedConversation,
         });
+
         homeDispatch({ field: 'loading', value: true });
         homeDispatch({ field: 'messageIsStreaming', value: true });
         const chatBody: ChatBody = {
           model: updatedConversation.model.name,
           system: updatedConversation.prompt,
-          prompt: updatedConversation.messages.map(message => message.content).join(' '),
+          prompt: updatedConversation.messages.map(message => message.content).join(' ') + currentCode,
           options: { temperature: updatedConversation.temperature },
         };
         const endpoint = getEndpoint();
@@ -120,96 +116,63 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
           homeDispatch({ field: 'messageIsStreaming', value: false });
           return;
         }
-        if (!false) {
-          if (updatedConversation.messages.length === 1) {
-            const { content } = message;
-            const customName =
-              content.length > 30 ? content.substring(0, 30) + '...' : content;
-            updatedConversation = {
-              ...updatedConversation,
-              name: customName,
-            };
+
+        const reader = data.getReader();
+        const decoder = new TextDecoder();
+        let result = '';
+        let text ='';
+        let explanation = '';
+        const readStream = async () => {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            result += decoder.decode(value, { stream: true });
           }
-          homeDispatch({ field: 'loading', value: false });
-          const reader = data.getReader();
-          const decoder = new TextDecoder();
-          let done = false;
-          let isFirst = true;
-          let text = '';
-          while (!done) {
-          if (stopConversationRef.current === true) {
-            controller.abort();
-            done = true;
-            break;
-          }
-          const { value, done: doneReading } = await reader.read();
-          done = doneReading;
-          const chunkValue = decoder.decode(value);
-          text += chunkValue;
-          if (isFirst) {
-            isFirst = false;
-            const updatedMessages: Message[] = [
-              ...updatedConversation.messages,
-              { role: 'assistant', content: chunkValue },
-            ];
-            updatedConversation = {
-              ...updatedConversation,
-              messages: updatedMessages,
-            };
-            homeDispatch({
-              field: 'selectedConversation',
-              value: updatedConversation,
-            });
-            } else {
-              const updatedMessages: Message[] =
-                updatedConversation.messages.map((message, index) => {
-                  if (index === updatedConversation.messages.length - 1) {
-                    return {
-                      ...message,
-                      content: text,
-                    };
+
+          result += decoder.decode(); // Decode any remaining bytes
+          const lines = result.split('\n');
+
+              for (let line of lines) {
+                line = line.trim();
+                if (line.startsWith('data: ')) {
+                  // Strip the 'data: ' prefix
+                  const cleanChunkValue = line.replace(/^data: /, '');
+
+                  // Parse the JSON chunk
+                  try {
+                    if (cleanChunkValue !== '[DONE]') {
+                      const jsonChunk = JSON.parse(cleanChunkValue);
+                      const content = jsonChunk.choices[0].delta.content || '';
+                      text += content;
+                    }
+                  } catch (e) {
+                    console.error("Error parsing JSON chunk:", e);
                   }
-                  return message;
-                });
-              updatedConversation = {
-                ...updatedConversation,
-                messages: updatedMessages,
-              };
-              homeDispatch({
-                field: 'selectedConversation',
-                value: updatedConversation,
-              });
-            }
-          } 
-          saveConversation(updatedConversation);
-          const updatedConversations: Conversation[] = conversations.map(
-            (conversation) => {
-              if (conversation.id === selectedConversation.id) {
-                return updatedConversation;
+                }
               }
-              return conversation;
-            },
-          );
-          if (updatedConversations.length === 0) {
-            updatedConversations.push(updatedConversation);
-          }
-          homeDispatch({ field: 'conversations', value: updatedConversations });
-          saveConversations(updatedConversations);
-          homeDispatch({ field: 'messageIsStreaming', value: false });
-        } else {
-          const { answer } = await response.json();
-          const updatedMessages: Message[] = [
-            ...updatedConversation.messages,
-            { role: 'assistant', content: answer },
-          ];
-          updatedConversation = {
-            ...updatedConversation,
-            messages: updatedMessages,
-          };
-          homeDispatch({
-            field: 'selectedConversation',
-            value: updateConversation,
-          });
+          console.log("OpenAI Response", text);
+          const json = JSON.parse(text.replace('```json', '').replace('```', ''));
+          explanation = json.explanation
+          const code = json.code[0].content;
+          setCurrentCode(code);
+          window.parent.postMessage({ type: 'FROM_IFRAME', data: code }, '*');
+        };
+
+        await readStream();
+
+        const updatedMessages: Message[] = [
+          ...updatedConversation.messages,
+          { role: 'assistant', content: explanation },
+        ];
+        updatedConversation = {
+          ...updatedConversation,
+          messages: updatedMessages,
+        };
+        homeDispatch({
+          field: 'selectedConversation',
+          value: updatedConversation,
+        });
+
           saveConversation(updatedConversation);
           const updatedConversations: Conversation[] = conversations.map(
             (conversation) => {
@@ -226,23 +189,10 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
           saveConversations(updatedConversations);
           homeDispatch({ field: 'loading', value: false });
           homeDispatch({ field: 'messageIsStreaming', value: false });
-        }
       }
     },
-    [
-      conversations,
-      selectedConversation,
-      stopConversationRef,
-      homeDispatch,
-    ],
+    [selectedConversation, homeDispatch, conversations],
   );
-
-  const scrollToBottom = useCallback(() => {
-    if (autoScrollEnabled) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      textareaRef.current?.focus();
-    }
-  }, [autoScrollEnabled]);
 
   const handleScroll = () => {
     if (chatContainerRef.current) {
@@ -265,10 +215,6 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
       top: chatContainerRef.current.scrollHeight,
       behavior: 'smooth',
     });
-  };
-
-  const handleSettings = () => {
-    setShowSettings(!showSettings);
   };
 
   const onClearAll = () => {
@@ -339,34 +285,17 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
                         <Spinner size="16px" className="mx-auto" />
                       </div>
                     ) : (
-                      'Chatbot Ollama'
+                      'Genezio AI - Your deployment assistant'
                     )}
                   </div>
 
                   {models.length > 0 && (
                     <div className="flex h-full flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600">
-                      <ModelSelect />
-
-                      <SystemPrompt
-                        conversation={selectedConversation}
-                        prompts={prompts}
-                        onChangePrompt={(prompt) =>
-                          handleUpdateConversation(selectedConversation, {
-                            key: 'prompt',
-                            value: prompt,
-                          })
-                        }
-                      />
-
-                      <TemperatureSlider
-                        label={t('Temperature')}
-                        onChangeTemperature={(temperature) =>
-                          handleUpdateConversation(selectedConversation, {
-                            key: 'temperature',
-                            value: temperature,
-                          })
-                        }
-                      />
+                      <h1><b>Welcome to Genezio AI</b></h1>
+                      <p>What serverless feature you want to implement today?</p>
+                      <p>
+                        Try something like <span style={{ textDecoration: 'underline', color: '#00c883' }}>Create a function that takes two numbers as input and returns their sum.</span>
+                      </p>
                     </div>
                   )}
                 </div>
@@ -374,19 +303,12 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
             ) : (
               <>
                 <div className="sticky top-0 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 py-2 text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
-                  {t('Model')}: {selectedConversation?.model.name} | {t('Temp')}
-                  : {selectedConversation?.temperature} |
-                  <button
-                    className="ml-2 cursor-pointer hover:opacity-50"
-                    onClick={handleSettings}
-                  >
-                    <IconSettings size={18} />
-                  </button>
+                  {t('Model')}: {selectedConversation?.model.name} |
                   <button
                     className="ml-2 cursor-pointer hover:opacity-50"
                     onClick={onClearAll}
                   >
-                    <IconClearAll size={18} />
+                    <IconTrash size={18} />
                   </button>
                 </div>
                 {showSettings && (
