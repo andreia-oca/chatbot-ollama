@@ -44,8 +44,6 @@ export const OpenAiStream = async (
 
   const finalPrompt = promptTemplate.replace('{{feature_description}}', prompt);
 
-  console.log('finalPrompt', finalPrompt);
-  console.log('systemPrompt', systemPrompt);
   const response = await fetch(url, {
     headers: {
       'Accept': 'application/json',

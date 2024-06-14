@@ -150,7 +150,6 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
                   }
                 }
               }
-          console.log("OpenAI Response", text);
           const json = JSON.parse(text.replace('```json', '').replace('```', ''));
           explanation = json.explanation
           const code = json.code[0].content;
