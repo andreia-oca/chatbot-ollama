@@ -1,4 +1,5 @@
 import { OllamaModel } from './ollama';
+import { OpenAiModel } from './openai';
 
 export interface Message {
   role: Role;
@@ -11,7 +12,7 @@ export interface ChatBody {
   model: string;
   system: string;
   prompt: string;
-  options?: 
+  options?:
     { temperature: number }
 }
 
@@ -19,7 +20,7 @@ export interface Conversation {
   id: string;
   name: string;
   messages: Message[];
-  model: OllamaModel;
+  model: OllamaModel | OpenAiModel;
   prompt: string;
   temperature: number;
   folderId: string | null;

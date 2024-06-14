@@ -27,7 +27,6 @@ import HomeContext from '@/pages/api/home/home.context';
 import Spinner from '../Spinner';
 import { ChatInput } from './ChatInput';
 import { ChatLoader } from './ChatLoader';
-import { ModelSelect } from './ModelSelect';
 import { MemoizedChatMessage } from './MemoizedChatMessage';
 
 interface Props {
@@ -120,8 +119,6 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
         const reader = data.getReader();
         const decoder = new TextDecoder();
         let result = '';
-        let text ='';
-        let explanation = '';
         const readStream = async () => {
           while (true) {
             const { done, value } = await reader.read();
@@ -129,35 +126,38 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
             result += decoder.decode(value, { stream: true });
           }
 
+          let finalContent = ''
           result += decoder.decode(); // Decode any remaining bytes
           const lines = result.split('\n');
+          for (let line of lines) {
+            line = line.trim();
+            if (line.startsWith('data: ')) {
+              // Strip the 'data: ' prefix
+              const cleanChunkValue = line.replace(/^data: /, '');
 
-              for (let line of lines) {
-                line = line.trim();
-                if (line.startsWith('data: ')) {
-                  // Strip the 'data: ' prefix
-                  const cleanChunkValue = line.replace(/^data: /, '');
-
-                  // Parse the JSON chunk
-                  try {
-                    if (cleanChunkValue !== '[DONE]') {
-                      const jsonChunk = JSON.parse(cleanChunkValue);
-                      const content = jsonChunk.choices[0].delta.content || '';
-                      text += content;
-                    }
-                  } catch (e) {
-                    console.error("Error parsing JSON chunk:", e);
-                  }
+              // Parse the JSON chunk
+              try {
+                if (cleanChunkValue !== '[DONE]') {
+                  const jsonChunk = JSON.parse(cleanChunkValue);
+                  const content = jsonChunk.choices[0].delta.content || '';
+                  finalContent += content;
                 }
+              } catch (e) {
+                console.error("Error parsing JSON chunk:", e);
               }
-          const json = JSON.parse(text.replace('```json', '').replace('```', ''));
-          explanation = json.explanation
-          const code = json.code[0].content;
-          setCurrentCode(code);
-          window.parent.postMessage({ type: 'FROM_IFRAME', data: code }, '*');
+            }
+          }
+          return finalContent;
         };
 
-        await readStream();
+        const text = await readStream();
+
+        console.log(text)
+        const json = JSON.parse(text.replace('```json', '').replace('```', ''));
+        const explanation = json.explanation
+        const code = json.code[0].content;
+        setCurrentCode(code);
+        window.parent.postMessage({ type: 'FROM_IFRAME', data: code }, '*');
 
         const updatedMessages: Message[] = [
           ...updatedConversation.messages,
@@ -279,30 +279,20 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
               <>
                 <div className="mx-auto flex flex-col space-y-5 md:space-y-10 px-3 pt-5 md:pt-12 sm:max-w-[600px]">
                   <div className="text-center text-3xl font-semibold text-gray-800 dark:text-gray-100">
-                    {models.length === 0 ? (
-                      <div>
-                        <Spinner size="16px" className="mx-auto" />
-                      </div>
-                    ) : (
-                      'Genezio AI - Your deployment assistant'
-                    )}
+                      <h1>Genezio AI - Your deployment assistant</h1>
                   </div>
-
-                  {models.length > 0 && (
-                    <div className="flex h-full flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600">
-                      <h1><b>Welcome to Genezio AI</b></h1>
-                      <p>What serverless feature you want to implement today?</p>
-                      <p>
-                        Try something like <span style={{ textDecoration: 'underline', color: '#00c883' }}>Create a function that takes two numbers as input and returns their sum.</span>
-                      </p>
-                    </div>
-                  )}
+                  <div className="flex h-full flex-col space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-600">
+                    <h1><b>Welcome to Genezio AI</b></h1>
+                    <p>What serverless feature you want to implement today?</p>
+                    <p>
+                      Try something like <span style={{ textDecoration: 'underline', color: '#00c883' }}>Create a function that takes two numbers as input and returns their sum.</span>
+                    </p>
+                  </div>
                 </div>
               </>
             ) : (
               <>
                 <div className="sticky top-0 z-10 flex justify-center border border-b-neutral-300 bg-neutral-100 py-2 text-sm text-neutral-500 dark:border-none dark:bg-[#444654] dark:text-neutral-200">
-                  {t('Model')}: {selectedConversation?.model.name} |
                   <button
                     className="ml-2 cursor-pointer hover:opacity-50"
                     onClick={onClearAll}
@@ -310,13 +300,6 @@ export const Chat = memo(({ stopConversationRef }: Props) => {
                     <IconTrash size={18} />
                   </button>
                 </div>
-                {showSettings && (
-                  <div className="flex flex-col space-y-10 md:mx-auto md:max-w-xl md:gap-6 md:py-3 md:pt-6 lg:max-w-2xl lg:px-0 xl:max-w-3xl">
-                    <div className="flex h-full flex-col space-y-4 border-b border-neutral-200 p-4 dark:border-neutral-600 md:rounded-lg md:border">
-                      <ModelSelect />
-                    </div>
-                  </div>
-                )}
 
                 {selectedConversation?.messages.map((message, index) => (
                   <MemoizedChatMessage

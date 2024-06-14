@@ -1,15 +1,18 @@
 export interface OpenAiModel {
+    id: string;
     name: string;
+    created_at?: string;
 }
 
 export enum OpenAiModelID {
-    DEFAULTMODEL = 'gpt-4'
+    DEFAULT_MODEL = 'gpt-4o'
 }
 
-export const fallbackModelID = OpenAiModelID.DEFAULTMODEL;
+export const fallbackModelID = OpenAiModelID.DEFAULT_MODEL;
 
 export const OpenAiModels: Record<OpenAiModelID, OpenAiModel> = {
-    [OpenAiModelID.DEFAULTMODEL]: {
-        name: 'gpt-4',
+    [OpenAiModelID.DEFAULT_MODEL]: {
+        id: 'gpt-4o',
+        name: 'gpt-4o',
     },
 };

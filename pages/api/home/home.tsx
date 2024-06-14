@@ -21,12 +21,12 @@ import { OllamaModelID, OllamaModels, fallbackModelID } from '@/types/ollama';
 import { Prompt } from '@/types/prompt';
 
 import { Chat } from '@/components/Chat/Chat';
-import { Chatbar } from '@/components/Chatbar/Chatbar';
 import { Navbar } from '@/components/Mobile/Navbar';
-import Promptbar from '@/components/Promptbar';
 import HomeContext from './home.context';
 import { HomeInitialState, initialState } from './home.state';
 import { v4 as uuidv4 } from 'uuid';
+import { OpenAiModels } from '@/types/openai';
+// import { Chatbar } from '@/components/Chatbar/Chatbar';
 
 interface Props {
   defaultModelId: OllamaModelID;
@@ -36,7 +36,6 @@ const Home = ({ defaultModelId }: Props) => {
   const { t } = useTranslation('chat');
   const { getModels } = useApiService();
   const { getModelsError } = useErrorService();
-  const [initialRender, setInitialRender] = useState<boolean>(true);
 
   const contextValue = useCreateReducer<HomeInitialState>({
     initialState,
@@ -149,15 +148,13 @@ const Home = ({ defaultModelId }: Props) => {
   // CONVERSATION OPERATIONS  --------------------------------------------
 
   const handleNewConversation = () => {
-    const lastConversation = conversations[conversations.length - 1];
-
     const newConversation: Conversation = {
       id: uuidv4(),
       name: t('New Conversation'),
       messages: [],
-      model: lastConversation?.model,
+      model: OpenAiModels["gpt-4o"],
       prompt: DEFAULT_SYSTEM_PROMPT,
-      temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
+      temperature: DEFAULT_TEMPERATURE,
       folderId: null,
     };
 
@@ -261,16 +258,15 @@ const Home = ({ defaultModelId }: Props) => {
         value: cleanedSelectedConversation,
       });
     } else {
-      const lastConversation = conversations[conversations.length - 1];
       dispatch({
         field: 'selectedConversation',
         value: {
           id: uuidv4(),
           name: t('New Conversation'),
           messages: [],
-          model: OllamaModels[defaultModelId],
+          model: OpenAiModels["gpt-4o"],
           prompt: DEFAULT_SYSTEM_PROMPT,
-          temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
+          temperature: DEFAULT_TEMPERATURE,
           folderId: null,
         },
       });
@@ -296,7 +292,7 @@ const Home = ({ defaultModelId }: Props) => {
           name="viewport"
           content="height=device-height ,width=width-device, initial-scale=1, user-scalable=no"
         />
-        <link rel="icon" href="/favicon.png" />
+        <link rel="icon" href="/favicon.ico" />
       </Head>
       {selectedConversation && (
         <main
